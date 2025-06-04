@@ -1,0 +1,59 @@
+{% extends "base_entity_dashboard.html" %}
+
+{% block title %}Attendance Sessions - {{ entity.name }}{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Attendance Sessions</h2>
+    <a href="{{ url_for('entity.create_attendance_session') }}" class="btn btn-primary">Create New Session</a>
+  </div>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Date</th>
+        <th>Start Time</th>
+        <th>Purpose</th>
+        <th>Status</th>
+        <th>Attendees</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for session_item in sessions %}
+      <tr>
+        <td>{{ session_item.id }}</td>
+        <td>{{ session_item.date.strftime('%Y-%m-%d') }}</td>
+        <td>{{ session_item.start_time.strftime('%H:%M') }}</td>
+        <td>{{ session_item.purpose or '-' }}</td>
+        <td>
+          {% if session_item.is_active %}
+            <span class="badge badge-success">Active</span>
+          {% else %}
+            <span class="badge badge-secondary">Inactive</span>
+          {% endif %}
+        </td>
+        <td>{{ session_item.attendance_records|length }}</td> {# Simple count of attendees #}
+        <td>
+          <a href="{{ url_for('entity.scan_attendance', session_id=session_item.id) if session_item.is_active else '#' }}"
+             class="btn btn-sm btn-success {{ 'disabled' if not session_item.is_active }}">
+             Scan Cards
+          </a>
+          <form action="{{ url_for('entity.toggle_attendance_session_active', session_id=session_item.id) }}" method="POST" style="display:inline;">
+            <button type="submit" class="btn btn-sm btn-warning">
+              {{ 'Deactivate' if session_item.is_active else 'Activate' }}
+            </button>
+          </form>
+           <form action="{{ url_for('entity.delete_attendance_session', session_id=session_item.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this session? Make sure all attendance records are handled.');">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7">No attendance sessions found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

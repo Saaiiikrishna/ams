@@ -1,0 +1,83 @@
+{% extends "base_entity_dashboard.html" %}
+
+{% block title %}Daily Attendance Sheet - {{ target_date.strftime('%Y-%m-%d') }} - {{ entity.name }}{% endblock %}
+
+{% block content %}
+  <h2>Daily Attendance Sheet</h2>
+  <h4>Date: {{ target_date.strftime('%A, %B %d, %Y') }}</h4>
+
+  <form method="GET" class="form-inline mb-3">
+    <div class="form-group mr-2">
+      <label for="date_selector" class="mr-2">Select Date:</label>
+      <input type="date" class="form-control" id="date_selector" name="date_selector" value="{{ target_date.strftime('%Y-%m-%d') }}">
+    </div>
+    <button type="submit" class="btn btn-primary">View Sheet</button>
+  </form>
+  <script>
+    // JavaScript to update the URL when date changes, then submit form
+    document.getElementById('date_selector').addEventListener('change', function() {
+        const selectedDate = this.value;
+        if (selectedDate) {
+            // Construct the new URL for the form action
+            const baseUrl = "{{ url_for('entity.daily_attendance_sheet') }}";
+            this.form.action = `${baseUrl}/${selectedDate}`;
+        }
+    });
+  </script>
+
+  <hr>
+
+  {% if not sessions_on_date and not attendees and not absentees %}
+    <p>No attendance sessions were scheduled or no subscribers registered for this day.</p>
+  {% else %}
+    <div class="row">
+      <div class="col-md-6">
+        <h4>Attendees ({{ attendees|length }})
+          <a href="{{ url_for('entity.daily_attendance_sheet', date_str=target_date.strftime('%Y-%m-%d'), export='attendees') }}" class="btn btn-sm btn-outline-secondary ml-2">Export CSV</a>
+        </h4>
+        {% if attendees %}
+          <ul class="list-group">
+            {% for subscriber in attendees %}
+              <li class="list-group-item">{{ subscriber.name }} ({{ subscriber.nfc_card_id }})</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>No attendees recorded for this date.</p>
+        {% endif %}
+      </div>
+      <div class="col-md-6">
+        <h4>Absentees ({{ absentees|length }})
+          <a href="{{ url_for('entity.daily_attendance_sheet', date_str=target_date.strftime('%Y-%m-%d'), export='absentees') }}" class="btn btn-sm btn-outline-secondary ml-2">Export CSV</a>
+        </h4>
+        {% if absentees %}
+          <ul class="list-group">
+            {% for subscriber in absentees %}
+              <li class="list-group-item">{{ subscriber.name }} ({{ subscriber.nfc_card_id }})</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>All registered subscribers attended, or no subscribers to track.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <hr>
+    <h4>Detailed Attendance by Session</h4>
+    {% if detailed_attendance %}
+      {% for item in detailed_attendance %}
+        <h5>Session: {{ item.session.purpose or item.session.id }} ({{ item.session.start_time.strftime('%H:%M') }}) - {{ item.records|length }} attended</h5>
+        {% if item.records %}
+          <ul class="list-group mb-3">
+            {% for subscriber, scan_time in item.records %}
+              <li class="list-group-item">{{ subscriber.name }} ({{ subscriber.nfc_card_id }}) - Scanned at: {{ scan_time.strftime('%H:%M:%S') }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>No attendees for this specific session.</p>
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <p>No sessions found for this date to detail.</p>
+    {% endif %}
+  {% endif %}
+{% endblock %}

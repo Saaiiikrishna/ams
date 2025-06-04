@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <title>{% block title %}Entity Dashboard{% endblock %}</title>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+      <a class="navbar-brand" href="{{ url_for('entity.dashboard_home') }}">{% if g and g.entity %}{{ g.entity.name }}{% else %}Entity Dashboard{% endif %}</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav mr-auto">
+          {% if 'entity_admin_id' in session %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('entity.dashboard_home') }}">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('entity.list_subscribers') }}">Subscribers</a>
+          </li>
+          <!-- Add other dashboard navigation links here -->
+          <li class="nav-item">
+            <a class='nav-link' href='{{ url_for('entity.list_attendance_sessions') }}'>Attendance Sessions</a>
+          </li>
+          <li class='nav-item'><a class='nav-link' href='{{ url_for("entity.daily_attendance_sheet") }}'>Daily Sheet</a></li>
+          <li class='nav-item'><a class='nav-link' href='{{ url_for("entity.report_subscriber_attendance_form") }}'>Subscriber Report</a></li>
+          {% endif %}
+        </ul>
+        <ul class="navbar-nav">
+            {% if 'entity_admin_id' in session %}
+                <li class="nav-item">
+                    <span class="navbar-text mr-3">Logged in as: {{ session.entity_admin_username }}</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('entity.logout') }}">Logout</a>
+                </li>
+            {% else %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('entity.login') }}">Login</a>
+                </li>
+            {% endif %}
+        </ul>
+      </div>
+    </nav>
+    <div class="container mt-4">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  </body>
+</html>

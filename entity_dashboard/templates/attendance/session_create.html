@@ -1,0 +1,23 @@
+{% extends "base_entity_dashboard.html" %}
+
+{% block title %}Create Attendance Session - {{ entity.name }}{% endblock %}
+
+{% block content %}
+  <h2>Create New Attendance Session</h2>
+  <form method="POST">
+    <div class="form-group">
+      <label for="date">Date <span class="text-danger">*</span></label>
+      <input type="date" class="form-control" id="date" name="date" value="{{ form_data.date or '' }}" required>
+    </div>
+    <div class="form-group">
+      <label for="start_time">Start Time <span class="text-danger">*</span></label>
+      <input type="time" class="form-control" id="start_time" name="start_time" value="{{ form_data.start_time or '' }}" required>
+    </div>
+    <div class="form-group">
+      <label for="purpose">Purpose (Optional)</label>
+      <input type="text" class="form-control" id="purpose" name="purpose" value="{{ form_data.purpose or '' }}">
+    </div>
+    <button type="submit" class="btn btn-primary">Create Session</button>
+    <a href="{{ url_for('entity.list_attendance_sessions') }}" class="btn btn-secondary">Cancel</a>
+  </form>
+{% endblock %}

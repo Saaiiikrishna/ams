@@ -1,0 +1,105 @@
+{% extends "base_entity_dashboard.html" %}
+
+{% block title %}Scan Attendance - Session {{ session.id }} - {{ entity.name }}{% endblock %}
+
+{% block content %}
+  <h2>Scan Attendance</h2>
+  <h4>Session: {{ session.purpose or session.id }} ({{ session.date.strftime('%Y-%m-%d') }} {{ session.start_time.strftime('%H:%M') }})</h4>
+
+  {% if not session.is_active %}
+  <div class="alert alert-warning" role="alert">
+    This session is currently INACTIVE. Activate it from the <a href="{{ url_for('entity.list_attendance_sessions') }}">sessions list</a> to record attendance.
+  </div>
+  {% else %}
+  <div class="row">
+    <div class="col-md-6">
+      <h4>Manual Card UID Entry (Simulated Scan)</h4>
+      <form method="POST" id="scanForm">
+        <div class="form-group">
+          <label for="card_uid">Card UID</label>
+          <input type="text" class="form-control" id="card_uid" name="card_uid" autofocus required>
+        </div>
+        <button type="submit" class="btn btn-primary">Record Attendance</button>
+      </form>
+      <hr>
+      <div id="scanResult" class="mt-3">
+        <!-- Scan results will be shown here by JavaScript if using AJAX -->
+      </div>
+    </div>
+    <div class="col-md-6">
+      <h4>Recently Scanned Attendees (Last 20)</h4>
+      <ul class="list-group" id="recentAttendeesList">
+        {% for record in recent_attendees %}
+          <li class="list-group-item">
+            <strong>{{ record.subscriber.name }}</strong> ({{ record.subscriber.nfc_card_id }})
+            <br><small>Scanned at: {{ record.scan_time.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+          </li>
+        {% else %}
+          <li class="list-group-item">No attendees recorded yet for this session.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Optional: Basic AJAX submission for a smoother experience
+    document.getElementById('scanForm').addEventListener('submit', function(event) {
+      event.preventDefault(); // Stop normal form submission
+      const formData = new FormData(this);
+      const cardUidInput = document.getElementById('card_uid');
+
+      fetch(this.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        const scanResultDiv = document.getElementById('scanResult');
+        let message = '';
+        let alertClass = 'alert-info';
+
+        if (data.status === 'success') {
+          message = `SUCCESS: ${data.name} (${data.card_uid}) recorded at ${data.scan_time}.`;
+          alertClass = 'alert-success';
+          // Add to recent attendees list dynamically
+          const newListEntry = document.createElement('li');
+          newListEntry.className = 'list-group-item';
+          newListEntry.innerHTML = `<strong>${data.name}</strong> (${data.card_uid})<br><small>Scanned at: ${data.scan_time}</small>`;
+          const recentList = document.getElementById('recentAttendeesList');
+          if (recentList.firstChild && recentList.firstChild.textContent === 'No attendees recorded yet for this session.') {
+            recentList.innerHTML = ''; // Clear "No attendees" message
+          }
+          recentList.insertBefore(newListEntry, recentList.firstChild); // Add to top
+          // Limit client-side list to 20
+          while (recentList.children.length > 20) {
+            recentList.removeChild(recentList.lastChild);
+          }
+
+        } else if (data.status === 'already_present') {
+          message = `INFO: ${data.name} (${data.card_uid}) already present (scanned at ${data.scan_time}).`;
+          alertClass = 'alert-info';
+        } else if (data.status === 'not_found') {
+          message = `ERROR: Card UID "${data.card_uid}" not found for your entity.`;
+          alertClass = 'alert-danger';
+        } else {
+          message = `ERROR: ${data.message || 'Could not record attendance.'}`;
+          alertClass = 'alert-danger';
+        }
+        scanResultDiv.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+        cardUidInput.value = ''; // Clear input field
+        cardUidInput.focus(); // Set focus back to input
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('scanResult').innerHTML = '<div class="alert alert-danger">An unexpected error occurred.</div>';
+        cardUidInput.value = '';
+        cardUidInput.focus();
+      });
+    });
+  </script>
+  {% endif %} {# End of session.is_active check #}
+
+{% endblock %}
