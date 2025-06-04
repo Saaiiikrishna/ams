@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Entities{% endblock %}
+
+{% block content %}
+  <h2>Entities</h2>
+  <a href="{{ url_for('admin.create_entity') }}" class="btn btn-primary mb-3">Create New Entity</a>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Contact Person</th>
+        <th>Subscribers</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entity in entities %}
+      <tr>
+        <td>{{ entity.id }}</td>
+        <td>{{ entity.name }}</td>
+        <td>{{ entity.email }}</td>
+        <td>{{ entity.contact_person_name }} ({{ entity.contact_person_mobile }})</td>
+        <td>{{ entity.total_registered_subscribers }}</td>
+        <td>
+          <a href="{{ url_for('admin.update_entity', entity_id=entity.id) }}" class="btn btn-sm btn-info">Edit</a>
+          <form action="{{ url_for('admin.delete_entity', entity_id=entity.id) }}" method="POST" style="display:inline;">
+            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this entity?');">Delete</button>
+          </form>
+          <a href="{{ url_for('admin.assign_admin_credentials', entity_id=entity.id) }}" class="btn btn-sm btn-secondary">Manage Admin</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6">No entities found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

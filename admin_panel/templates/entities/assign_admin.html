@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Admin for {{ entity.name }}{% endblock %}
+
+{% block content %}
+  <h2>Manage Admin Credentials for {{ entity.name }}</h2>
+  <form method="POST">
+    <div class="form-group">
+      <label for="username">Admin Username</label>
+      <input type="text" class="form-control" id="username" name="username" value="{{ entity_admin.username if entity_admin else request.form.username if request.form else '' }}" required>
+    </div>
+    <div class="form-group">
+      <label for="password">Admin Password</label>
+      <input type="password" class="form-control" id="password" name="password" placeholder="{{ 'Enter new password to change' if entity_admin else 'Set password' }}" required>
+      {% if entity_admin %}
+      <small class="form-text text-muted">Leave blank if you don't want to change the password (if updating an existing admin - but current logic requires new password).</small>
+      <br><small class="form-text text-danger">Note: Current implementation requires setting/resetting password on each submission for simplicity.</small>
+      {% endif %}
+    </div>
+    <button type="submit" class="btn btn-primary">{{ 'Update Credentials' if entity_admin else 'Assign Credentials' }}</button>
+    <a href="{{ url_for('admin.list_entities') }}" class="btn btn-secondary">Cancel</a>
+  </form>
+{% endblock %}
