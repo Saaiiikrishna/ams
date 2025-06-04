@@ -9,9 +9,13 @@ DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# The get_db() generator function was not used by either admin_panel or entity_dashboard directly.
+# admin_panel uses SessionLocal() directly.
+# entity_dashboard uses SessionLocal() via g.db and a teardown_app_request.
+# So, this function can be removed to avoid confusion.
+# def get_db():
+#     db = SessionLocal()
+#     try:
+#         yield db
+#     finally:
+#         db.close()

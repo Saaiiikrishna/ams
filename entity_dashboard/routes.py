@@ -3,7 +3,7 @@ from database.db_config import SessionLocal
 from database.models import EntityAdmin, Entity, Subscriber, AttendanceSession, AttendanceRecord
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import desc, and_, func as sqlfunc
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, column_property, joinedload # Added joinedload
 import bcrypt
 from functools import wraps
 import os
@@ -51,7 +51,7 @@ def teardown_db(exception):
     if db is not None:
         db.close()
 
-# ... (Login, Logout, Dashboard Home, Subscriber CRUD routes) ...
+# ... (Login, Logout, Dashboard Home, Subscriber CRUD routes - unchanged) ...
 @entity_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if 'entity_admin_id' in session: return redirect(url_for('entity.dashboard_home'))
@@ -80,7 +80,6 @@ def logout():
 @login_required
 def dashboard_home(): return render_template('dashboard/home.html')
 
-# --- Subscriber Routes ---
 @entity_bp.route('/subscribers', methods=['GET'])
 @login_required
 def list_subscribers():
@@ -159,8 +158,10 @@ def delete_subscriber(subscriber_id):
 @entity_bp.route('/attendance/sessions', methods=['GET'])
 @login_required
 def list_attendance_sessions():
-    sessions = g.db.query(AttendanceSession).filter_by(entity_id=g.entity.id).order_by(desc(AttendanceSession.date), desc(AttendanceSession.start_time)).all()
-    return render_template('attendance/sessions_list.html', sessions=sessions)
+    subquery = g.db.query(AttendanceRecord.session_id, sqlfunc.count(AttendanceRecord.id).label('attendee_count')).group_by(AttendanceRecord.session_id).subquery()
+    sessions_with_counts = g.db.query(AttendanceSession, subquery.c.attendee_count).outerjoin(subquery, AttendanceSession.id == subquery.c.session_id).filter(AttendanceSession.entity_id == g.entity.id).order_by(desc(AttendanceSession.date), desc(AttendanceSession.start_time)).all()
+    sessions_data = [{'session': session, 'attendee_count': count or 0} for session, count in sessions_with_counts]
+    return render_template('attendance/sessions_list.html', sessions_data=sessions_data)
 
 @entity_bp.route('/attendance/sessions/create', methods=['GET', 'POST'])
 @login_required
@@ -203,7 +204,7 @@ def toggle_attendance_session_active(session_id):
 @login_required
 def delete_attendance_session(session_id):
     session_to_delete = g.db.query(AttendanceSession).filter_by(id=session_id, entity_id=g.entity.id).first_or_404()
-    if session_to_delete.attendance_records:
+    if g.db.query(AttendanceRecord).filter_by(session_id=session_id).first():
         flash(f'Cannot delete session "{session_to_delete.purpose or session_to_delete.id}" as it has attendance records.', 'warning')
         return redirect(url_for('entity.list_attendance_sessions'))
     try:
@@ -254,19 +255,44 @@ def daily_attendance_sheet(date_str=None):
     else:
         try: target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError: flash('Invalid date format.', 'danger'); return redirect(url_for('entity.daily_attendance_sheet'))
-    sessions_on_date = g.db.query(AttendanceSession).filter(AttendanceSession.entity_id == g.entity.id, AttendanceSession.date == target_date).all()
+
+    sessions_on_date_query = g.db.query(AttendanceSession).filter(
+        AttendanceSession.entity_id == g.entity.id,
+        AttendanceSession.date == target_date
+    )
+    # Eagerly load attendance_records and their associated subscriber for these sessions
+    sessions_on_date = sessions_on_date_query.options(
+        joinedload(AttendanceSession.attendance_records).joinedload(AttendanceRecord.subscriber)
+    ).all()
+
     all_entity_subscribers = g.db.query(Subscriber).filter_by(entity_id=g.entity.id).all()
+
     attendee_subscriber_ids = set()
-    if sessions_on_date:
-        session_ids_on_date = [s.id for s in sessions_on_date]
-        attended_records = g.db.query(AttendanceRecord.subscriber_id).filter(AttendanceRecord.session_id.in_(session_ids_on_date)).distinct().all()
-        attendee_subscriber_ids = {r.subscriber_id for r in attended_records}
+    # Build detailed_attendance and attendee_subscriber_ids more efficiently
+    detailed_attendance = []
+    all_records_for_date = g.db.query(AttendanceRecord)        .join(AttendanceSession)        .filter(AttendanceSession.entity_id == g.entity.id, AttendanceSession.date == target_date)        .options(joinedload(AttendanceRecord.subscriber))        .all()
+
+    session_to_records_map = {}
+    for record in all_records_for_date:
+        attendee_subscriber_ids.add(record.subscriber_id)
+        if record.session_id not in session_to_records_map:
+            session_to_records_map[record.session_id] = []
+        session_to_records_map[record.session_id].append(record)
+
+    for s in sessions_on_date: # Iterate over already fetched sessions_on_date
+        session_records_list = []
+        for r in session_to_records_map.get(s.id, []):
+            # subscriber object is already loaded on r due to joinedload
+            session_records_list.append({'subscriber': r.subscriber, 'scan_time': r.scan_time})
+
+        # Sort by subscriber name for display consistency
+        session_records_list.sort(key=lambda x: x['subscriber'].name)
+        detailed_attendance.append({'session': s, 'records': session_records_list})
+
+
     attendees_list = [sub for sub in all_entity_subscribers if sub.id in attendee_subscriber_ids]
     absentees_list = [sub for sub in all_entity_subscribers if sub.id not in attendee_subscriber_ids]
-    detailed_attendance = []
-    for session_item in sessions_on_date:
-        records_for_session = g.db.query(Subscriber, AttendanceRecord.scan_time).join(AttendanceRecord, AttendanceRecord.subscriber_id == Subscriber.id).filter(AttendanceRecord.session_id == session_item.id).order_by(Subscriber.name).all()
-        detailed_attendance.append({'session': session_item, 'records': records_for_session})
+
     export_type = request.args.get('export')
     if export_type:
         output = io.StringIO(); writer = csv.writer(output)
@@ -280,64 +306,37 @@ def daily_attendance_sheet(date_str=None):
             filename = f"absentees_{target_date.strftime('%Y-%m-%d')}.csv"
         else: return redirect(url_for('entity.daily_attendance_sheet', date_str=target_date.strftime('%Y-%m-%d')))
         return Response(output.getvalue(), mimetype="text/csv", headers={"Content-disposition": f"attachment; filename={filename}"})
+
     return render_template('attendance/daily_sheet.html', target_date=target_date, sessions_on_date=sessions_on_date, attendees=attendees_list, absentees=absentees_list, detailed_attendance=detailed_attendance)
 
-# --- Subscriber Attendance History ---
 @entity_bp.route('/subscribers/<int:subscriber_id>/attendance', methods=['GET'])
 @login_required
 def view_subscriber_attendance(subscriber_id):
     subscriber = g.db.query(Subscriber).filter_by(id=subscriber_id, entity_id=g.entity.id).first_or_404()
-
-    # Default to last 1 year
-    end_date = datetime.date.today()
-    start_date = end_date - datetime.timedelta(days=365)
-
+    end_date = datetime.date.today(); start_date = end_date - datetime.timedelta(days=365)
     form_start_date_str = request.args.get('start_date', start_date.strftime('%Y-%m-%d'))
     form_end_date_str = request.args.get('end_date', end_date.strftime('%Y-%m-%d'))
-
     try:
         query_start_date = datetime.datetime.strptime(form_start_date_str, '%Y-%m-%d').date()
         query_end_date = datetime.datetime.strptime(form_end_date_str, '%Y-%m-%d').date()
     except ValueError:
         flash("Invalid date format for filtering. Using default range (last year).", "warning")
-        query_start_date = start_date
-        query_end_date = end_date
-        form_start_date_str = start_date.strftime('%Y-%m-%d') # Reset for form display
-        form_end_date_str = end_date.strftime('%Y-%m-%d')
+        query_start_date = start_date; query_end_date = end_date
+        form_start_date_str = start_date.strftime('%Y-%m-%d'); form_end_date_str = end_date.strftime('%Y-%m-%d')
 
-
-    attendance_history = g.db.query(AttendanceRecord, AttendanceSession)                             .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)                             .filter(AttendanceRecord.subscriber_id == subscriber_id)                             .filter(AttendanceSession.date >= query_start_date)                             .filter(AttendanceSession.date <= query_end_date)                             .order_by(desc(AttendanceSession.date), desc(AttendanceSession.start_time))                             .all()
+    attendance_history = g.db.query(AttendanceRecord, AttendanceSession)                             .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)                             .filter(AttendanceRecord.subscriber_id == subscriber_id)                             .filter(AttendanceSession.date >= query_start_date)                             .filter(AttendanceSession.date <= query_end_date)                             .order_by(desc(AttendanceSession.date), desc(AttendanceSession.start_time))                             .all() # This query is specific and likely efficient enough.
 
     export = request.args.get('export')
     if export == 'csv':
-        output = io.StringIO()
-        writer = csv.writer(output)
+        output = io.StringIO(); writer = csv.writer(output)
         writer.writerow(['Session ID', 'Session Purpose', 'Session Date', 'Session Time', 'Scan Time'])
-        for record, session_item in attendance_history:
-            writer.writerow([
-                session_item.id,
-                session_item.purpose or 'N/A',
-                session_item.date.strftime('%Y-%m-%d'),
-                session_item.start_time.strftime('%H:%M:%S'),
-                record.scan_time.strftime('%Y-%m-%d %H:%M:%S')
-            ])
+        for record, session_item in attendance_history: writer.writerow([session_item.id, session_item.purpose or 'N/A', session_item.date.strftime('%Y-%m-%d'), session_item.start_time.strftime('%H:%M:%S'), record.scan_time.strftime('%Y-%m-%d %H:%M:%S')])
         filename = f"attendance_history_{subscriber.name.replace(' ','_')}_{query_start_date}_{query_end_date}.csv"
-        return Response(
-            output.getvalue(),
-            mimetype="text/csv",
-            headers={"Content-disposition": f"attachment; filename={filename}"}
-        )
-
-    return render_template('subscribers/attendance_history.html',
-                           subscriber=subscriber,
-                           history=attendance_history,
-                           start_date=form_start_date_str,
-                           end_date=form_end_date_str)
+        return Response(output.getvalue(), mimetype="text/csv", headers={"Content-disposition": f"attachment; filename={filename}"})
+    return render_template('subscribers/attendance_history.html', subscriber=subscriber, history=attendance_history, start_date=form_start_date_str, end_date=form_end_date_str)
 
 @entity_bp.route('/reports/subscriber_attendance', methods=['GET'])
 @login_required
 def report_subscriber_attendance_form():
     subscribers = g.db.query(Subscriber).filter_by(entity_id=g.entity.id).order_by(Subscriber.name).all()
-    # This route will just render a form. The form will then redirect to
-    # /subscribers/<subscriber_id>/attendance with query parameters.
     return render_template('reports/subscriber_attendance_form.html', subscribers=subscribers)
