@@ -1,0 +1,47 @@
+{% extends "base_entity_dashboard.html" %}
+
+{% block title %}Manage Subscribers - {{ entity.name }}{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Subscribers</h2>
+    <a href="{{ url_for('entity.add_subscriber') }}" class="btn btn-primary">Add New Subscriber</a>
+  </div>
+  <p>Total Registered Subscribers: {{ entity.total_registered_subscribers }}</p>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Card UID</th>
+        <th>Email</th>
+        <th>Mobile</th>
+        <th>Photo</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for subscriber in subscribers %}
+      <tr>
+        <td>{{ subscriber.id }}</td>
+        <td>{{ subscriber.name }}</td>
+        <td>{{ subscriber.nfc_card_id }}</td> {# Corrected from card_uid to nfc_card_id #}
+        <td>{{ subscriber.email or '-' }}</td>
+        <td>{{ subscriber.mobile or '-' }}</td>
+        <td>{{ subscriber.photo_filename or 'No photo' }}</td>
+        <td>
+          <a href="{{ url_for('entity.update_subscriber', subscriber_id=subscriber.id) }}" class="btn btn-sm btn-info">Edit</a>
+          <form action="{{ url_for('entity.delete_subscriber', subscriber_id=subscriber.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this subscriber? This might affect attendance records.');">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+          <a href="{{ url_for('entity.view_subscriber_attendance', subscriber_id=subscriber.id) }}" class="btn btn-sm btn-secondary">View Attendance</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7">No subscribers found.</td> {# Incremented colspan #}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

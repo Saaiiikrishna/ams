@@ -1,0 +1,49 @@
+{% extends "base_entity_dashboard.html" %}
+
+{% block title %}Attendance History for {{ subscriber.name }} - {{ entity.name }}{% endblock %}
+
+{% block content %}
+  <h3>Attendance History for: {{ subscriber.name }}</h3>
+  <p><strong>Card UID:</strong> {{ subscriber.nfc_card_id }}</p>
+  <p><a href="{{ url_for('entity.list_subscribers') }}" class="btn btn-sm btn-outline-secondary">&laquo; Back to Subscribers List</a></p>
+
+  <form method="GET" class="form-inline mb-3">
+    <div class="form-group mr-2">
+      <label for="start_date" class="mr-2">From:</label>
+      <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date }}">
+    </div>
+    <div class="form-group mr-2">
+      <label for="end_date" class="mr-2">To:</label>
+      <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date }}">
+    </div>
+    <button type="submit" class="btn btn-primary mr-2">Filter</button>
+    <a href="{{ url_for('entity.view_subscriber_attendance', subscriber_id=subscriber.id, start_date=start_date, end_date=end_date, export='csv') }}" class="btn btn-secondary">Export CSV</a>
+  </form>
+
+  {% if history %}
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Session ID</th>
+          <th>Session Purpose</th>
+          <th>Session Date</th>
+          <th>Session Time</th>
+          <th>Scanned At</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record, session_item in history %}
+          <tr>
+            <td><a href="{{ url_for('entity.scan_attendance', session_id=session_item.id) }}">{{ session_item.id }}</a></td>
+            <td>{{ session_item.purpose or 'N/A' }}</td>
+            <td>{{ session_item.date.strftime('%Y-%m-%d') }}</td>
+            <td>{{ session_item.start_time.strftime('%H:%M') }}</td>
+            <td>{{ record.scan_time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No attendance records found for {{ subscriber.name }} in the selected period.</p>
+  {% endif %}
+{% endblock %}

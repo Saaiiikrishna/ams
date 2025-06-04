@@ -1,0 +1,34 @@
+{% extends "base_entity_dashboard.html" %}
+
+{% block title %}Add Subscriber - {{ entity.name }}{% endblock %}
+
+{% block content %}
+  <h2>Add New Subscriber</h2>
+  <form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+      <label for="name">Name <span class="text-danger">*</span></label>
+      <input type="text" class="form-control" id="name" name="name" value="{{ form_data.name or '' }}" required>
+    </div>
+    <div class="form-group">
+      <label for="card_uid">Card UID <span class="text-danger">*</span></label>
+      <input type="text" class="form-control" id="card_uid" name="card_uid" value="{{ form_data.card_uid or '' }}" required>
+    </div>
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" class="form-control" id="email" name="email" value="{{ form_data.email or '' }}">
+      {# Removed note about email not being saved #}
+    </div>
+    <div class="form-group">
+      <label for="mobile">Mobile</label>
+      <input type="text" class="form-control" id="mobile" name="mobile" value="{{ form_data.mobile or '' }}">
+      {# Removed note about mobile not being saved #}
+    </div>
+    <div class="form-group">
+      <label for="photo">Photo (Optional)</label>
+      <input type="file" class="form-control-file" id="photo" name="photo">
+      <small class="form-text text-muted">Allowed formats: png, jpg, jpeg, gif. (Filename stored, actual file saving conceptual)</small>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Subscriber</button>
+    <a href="{{ url_for('entity.list_subscribers') }}" class="btn btn-secondary">Cancel</a>
+  </form>
+{% endblock %}

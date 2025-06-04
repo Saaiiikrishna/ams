@@ -1,0 +1,56 @@
+{% extends "base_entity_dashboard.html" %}
+
+{% block title %}Subscriber Attendance Report - {{ entity.name }}{% endblock %}
+
+{% block content %}
+  <h2>Subscriber Attendance Report</h2>
+  <p>Select a subscriber and a date range to view their attendance history.</p>
+
+  <form id="reportForm" method="GET">
+    <div class="form-group">
+      <label for="subscriber_id">Select Subscriber <span class="text-danger">*</span></label>
+      <select class="form-control" id="subscriber_id" name="subscriber_id" required>
+        <option value="">-- Select Subscriber --</option>
+        {% for sub in subscribers %}
+          <option value="{{ sub.id }}">{{ sub.name }} ({{ sub.nfc_card_id }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+        <div class="form-group col-md-6">
+            <label for="start_date_report">Start Date</label>
+            <input type="date" class="form-control" id="start_date_report" name="start_date">
+        </div>
+        <div class="form-group col-md-6">
+            <label for="end_date_report">End Date</label>
+            <input type="date" class="form-control" id="end_date_report" name="end_date">
+        </div>
+    </div>
+    <small class="form-text text-muted mb-2">If dates are not selected, it defaults to the last 1 year.</small>
+    <br>
+    <button type="submit" class="btn btn-primary">View History</button>
+  </form>
+
+  <script>
+    document.getElementById('reportForm').addEventListener('submit', function(event) {
+      event.preventDefault(); // Prevent default GET submission
+      const subscriberId = document.getElementById('subscriber_id').value;
+      const startDate = document.getElementById('start_date_report').value;
+      const endDate = document.getElementById('end_date_report').value;
+
+      if (!subscriberId) {
+        alert('Please select a subscriber.');
+        return;
+      }
+
+      let targetUrl = `{{ url_for('entity.view_subscriber_attendance', subscriber_id=0) }}`; // Base URL
+      targetUrl = targetUrl.replace('/0/attendance', `/${subscriberId}/attendance`); // Insert subscriber ID
+
+      const params = new URLSearchParams();
+      if (startDate) params.append('start_date', startDate);
+      if (endDate) params.append('end_date', endDate);
+
+      window.location.href = `${targetUrl}?${params.toString()}`;
+    });
+  </script>
+{% endblock %}

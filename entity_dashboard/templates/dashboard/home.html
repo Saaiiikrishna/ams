@@ -1,0 +1,17 @@
+{% extends "base_entity_dashboard.html" %}
+
+{% block title %}Dashboard - {{ entity_name }}{% endblock %}
+
+{% block content %}
+  <h2>Welcome to the Dashboard, {{ session.entity_admin_username }}!</h2>
+  <p>You are managing: <strong>{{ entity_name }}</strong> (ID: {{ session.entity_id }})</p>
+  <p>From here you can manage subscribers, attendance sessions, and view reports.</p>
+
+  <div class="list-group mt-4">
+    <a href="{{ url_for('entity.list_subscribers') }}" class="list-group-item list-group-item-action">
+      Manage Subscribers
+    </a>
+    <a href="#" class="list-group-item list-group-item-action disabled">Manage Attendance Sessions (Coming Soon)</a>
+    <a href="#" class="list-group-item list-group-item-action disabled">View Attendance Reports (Coming Soon)</a>
+  </div>
+{% endblock %}
