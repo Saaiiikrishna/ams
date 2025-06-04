@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from database.db_config import SessionLocal
-from database.models import Entity, EntityAdmin # Assuming your models are in database.models
+from database.models import Entity, EntityAdmin
 from sqlalchemy.exc import IntegrityError
-import bcrypt # For password hashing
+import bcrypt
 
 admin_bp = Blueprint('admin', __name__, template_folder='templates')
 
@@ -16,16 +16,27 @@ def list_entities():
     db.close()
     return render_template('entities/list.html', entities=entities)
 
+def safe_float(value_str):
+    if value_str and value_str.strip():
+        try:
+            return float(value_str)
+        except ValueError:
+            return None # Or raise an error, or return a specific marker
+    return None
+
 @admin_bp.route('/entities/create', methods=['GET', 'POST'])
 def create_entity():
     if request.method == 'POST':
         db = get_db_session()
         try:
+            latitude_str = request.form.get('latitude', '')
+            longitude_str = request.form.get('longitude', '')
+
             new_entity = Entity(
                 name=request.form['name'],
                 address=request.form.get('address'),
-                latitude=float(request.form['latitude']) if request.form.get('latitude') else None,
-                longitude=float(request.form['longitude']) if request.form.get('longitude') else None,
+                latitude=safe_float(latitude_str),
+                longitude=safe_float(longitude_str),
                 contact_person_name=request.form.get('contact_person_name'),
                 contact_person_mobile=request.form.get('contact_person_mobile'),
                 email=request.form['email']
@@ -37,6 +48,9 @@ def create_entity():
         except IntegrityError as e:
             db.rollback()
             flash(f'Error creating entity: Email might already exist. ({e})', 'danger')
+        except ValueError as e: # Catch specific error from float conversion if safe_float re-raises
+            db.rollback()
+            flash(f'Error creating entity: Invalid number format for latitude or longitude. ({e})', 'danger')
         except Exception as e:
             db.rollback()
             flash(f'An unexpected error occurred: {e}', 'danger')
@@ -55,40 +69,38 @@ def update_entity(entity_id):
 
     if request.method == 'POST':
         try:
+            latitude_str = request.form.get('latitude', '')
+            longitude_str = request.form.get('longitude', '')
+
             entity.name = request.form['name']
             entity.address = request.form.get('address')
-            entity.latitude = float(request.form['latitude']) if request.form.get('latitude') else None
-            entity.longitude = float(request.form['longitude']) if request.form.get('longitude') else None
+            entity.latitude = safe_float(latitude_str)
+            entity.longitude = safe_float(longitude_str)
             entity.contact_person_name = request.form.get('contact_person_name')
             entity.contact_person_mobile = request.form.get('contact_person_mobile')
             entity.email = request.form['email']
+
             db.commit()
             flash('Entity updated successfully!', 'success')
-            # db.close() # already closed in finally
             return redirect(url_for('admin.list_entities'))
         except IntegrityError:
             db.rollback()
             flash('Error updating entity: Email might already exist for another entity.', 'danger')
+        except ValueError as e: # Catch specific error from float conversion
+            db.rollback()
+            flash(f'Error updating entity: Invalid number format for latitude or longitude. ({e})', 'danger')
         except Exception as e:
             db.rollback()
             flash(f'An unexpected error occurred: {e}', 'danger')
-        # finally: # No finally here, render_template needs entity if error
-            # if db.is_active: db.close() # Ensure close if an error happens before commit
 
         # If POST and error, re-render with entity
-        # The session should still be active or reopened if necessary.
-        # For simplicity, we assume the session is fine or rely on get_db_session() again if needed.
-        # However, careful session management is crucial in complex scenarios.
-        # Let's ensure the entity is passed back for the form.
-        # db.close() # Close before rendering
-        # return render_template('entities/update.html', entity=entity) # This was causing issues with session
-
-    # If it's a GET request or a POST that failed and needs to re-render
-    if request.method == 'POST': # an error occurred, entity is already loaded
-        db.close() # close after error before re-rendering
+        # The session should be closed before re-rendering
+        # No need to close db explicitly here if it's handled by the calling structure or teardown
+        # But since we are not using a global session manager like g.db + teardown in admin_panel, close it.
+        if db.is_active : db.close() # ensure closed before re-render
         return render_template('entities/update.html', entity=entity)
 
-    # For GET request
+    # For GET request, db should be closed after use.
     db.close()
     return render_template('entities/update.html', entity=entity)
 
@@ -114,7 +126,7 @@ def delete_entity(entity_id):
             db.close()
     else:
         flash('Entity not found!', 'danger')
-        if db.is_active: db.close()
+        if db.is_active: db.close() # If entity not found, db might still be open
     return redirect(url_for('admin.list_entities'))
 
 @admin_bp.route('/entities/<int:entity_id>/assign_admin', methods=['GET', 'POST'])
@@ -126,8 +138,6 @@ def assign_admin_credentials(entity_id):
         db.close()
         return redirect(url_for('admin.list_entities'))
 
-    # Assuming one admin per entity for now for simplicity, or find the first one.
-    # A more complex system might allow multiple admins.
     entity_admin = db.query(EntityAdmin).filter_by(entity_id=entity.id).first()
 
     if request.method == 'POST':
@@ -136,19 +146,17 @@ def assign_admin_credentials(entity_id):
 
         if not username or not password:
             flash('Username and password are required.', 'danger')
-            db.close()
+            db.close() # Close session before re-rendering
             return render_template('entities/assign_admin.html', entity=entity, entity_admin=entity_admin)
 
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
         try:
             if entity_admin:
-                # Update existing admin
                 entity_admin.username = username
                 entity_admin.password_hash = hashed_password.decode('utf-8')
                 flash('Admin credentials updated successfully.', 'success')
             else:
-                # Create new admin
                 new_admin = EntityAdmin(
                     username=username,
                     password_hash=hashed_password.decode('utf-8'),
@@ -158,7 +166,7 @@ def assign_admin_credentials(entity_id):
                 flash('Admin credentials assigned successfully.', 'success')
 
             db.commit()
-            db.close()
+            # db.close() will be handled by finally
             return redirect(url_for('admin.list_entities'))
         except IntegrityError:
             db.rollback()
@@ -167,10 +175,11 @@ def assign_admin_credentials(entity_id):
             db.rollback()
             flash(f'An unexpected error occurred: {e}', 'danger')
         finally:
-            if db.is_active: db.close()
-        # If error, re-render form
+            if db.is_active: db.close() # Ensure session is closed
+
+        # If error, re-render form (db is closed by finally)
         return render_template('entities/assign_admin.html', entity=entity, entity_admin=entity_admin, username=username)
 
-
+    # For GET request
     db.close()
     return render_template('entities/assign_admin.html', entity=entity, entity_admin=entity_admin)

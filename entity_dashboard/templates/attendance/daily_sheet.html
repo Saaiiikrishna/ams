@@ -14,11 +14,9 @@
     <button type="submit" class="btn btn-primary">View Sheet</button>
   </form>
   <script>
-    // JavaScript to update the URL when date changes, then submit form
     document.getElementById('date_selector').addEventListener('change', function() {
         const selectedDate = this.value;
         if (selectedDate) {
-            // Construct the new URL for the form action
             const baseUrl = "{{ url_for('entity.daily_attendance_sheet') }}";
             this.form.action = `${baseUrl}/${selectedDate}`;
         }
@@ -68,8 +66,8 @@
         <h5>Session: {{ item.session.purpose or item.session.id }} ({{ item.session.start_time.strftime('%H:%M') }}) - {{ item.records|length }} attended</h5>
         {% if item.records %}
           <ul class="list-group mb-3">
-            {% for subscriber, scan_time in item.records %}
-              <li class="list-group-item">{{ subscriber.name }} ({{ subscriber.nfc_card_id }}) - Scanned at: {{ scan_time.strftime('%H:%M:%S') }}</li>
+            {% for record_detail in item.records %} {# Changed here #}
+              <li class="list-group-item">{{ record_detail.subscriber.name }} ({{ record_detail.subscriber.nfc_card_id }}) - Scanned at: {{ record_detail.scan_time.strftime('%H:%M:%S') }}</li>
             {% endfor %}
           </ul>
         {% else %}

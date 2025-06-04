@@ -20,31 +20,31 @@
       </tr>
     </thead>
     <tbody>
-      {% for session_item in sessions %}
+      {% for item in sessions_data %} {# Changed from 'sessions' to 'sessions_data' #}
       <tr>
-        <td>{{ session_item.id }}</td>
-        <td>{{ session_item.date.strftime('%Y-%m-%d') }}</td>
-        <td>{{ session_item.start_time.strftime('%H:%M') }}</td>
-        <td>{{ session_item.purpose or '-' }}</td>
+        <td>{{ item.session.id }}</td>
+        <td>{{ item.session.date.strftime('%Y-%m-%d') }}</td>
+        <td>{{ item.session.start_time.strftime('%H:%M') }}</td>
+        <td>{{ item.session.purpose or '-' }}</td>
         <td>
-          {% if session_item.is_active %}
+          {% if item.session.is_active %}
             <span class="badge badge-success">Active</span>
           {% else %}
             <span class="badge badge-secondary">Inactive</span>
           {% endif %}
         </td>
-        <td>{{ session_item.attendance_records|length }}</td> {# Simple count of attendees #}
+        <td>{{ item.attendee_count }}</td> {# Use pre-calculated count #}
         <td>
-          <a href="{{ url_for('entity.scan_attendance', session_id=session_item.id) if session_item.is_active else '#' }}"
-             class="btn btn-sm btn-success {{ 'disabled' if not session_item.is_active }}">
+          <a href="{{ url_for('entity.scan_attendance', session_id=item.session.id) if item.session.is_active else '#' }}"
+             class="btn btn-sm btn-success {{ 'disabled' if not item.session.is_active }}">
              Scan Cards
           </a>
-          <form action="{{ url_for('entity.toggle_attendance_session_active', session_id=session_item.id) }}" method="POST" style="display:inline;">
+          <form action="{{ url_for('entity.toggle_attendance_session_active', session_id=item.session.id) }}" method="POST" style="display:inline;">
             <button type="submit" class="btn btn-sm btn-warning">
-              {{ 'Deactivate' if session_item.is_active else 'Activate' }}
+              {{ 'Deactivate' if item.session.is_active else 'Activate' }}
             </button>
           </form>
-           <form action="{{ url_for('entity.delete_attendance_session', session_id=session_item.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this session? Make sure all attendance records are handled.');">
+           <form action="{{ url_for('entity.delete_attendance_session', session_id=item.session.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this session? Make sure all attendance records are handled.');">
             <button type="submit" class="btn btn-sm btn-danger">Delete</button>
           </form>
         </td>
